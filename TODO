@@ -1,0 +1,10 @@
+Features
+---------------------------------------------------------------------------
+
+followers jid - DONE
+following jid - DONE
+
+remove the leading stars, and have leading space be the escape for
+when commands collide with updates
+
+*whois string - nick search, lists matches and a few details
