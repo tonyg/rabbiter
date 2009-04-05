@@ -610,37 +610,30 @@ do_command(To, From, _RawCommand, {"unfollow", [JidStr]}) ->
       end);
 do_command(_To, From, _RawCommand, {"following", []}) ->
     case lookup_following(jid_to_urn(From)) of
-	{ok, []} ->
+	[] ->
 	    {ok, "You are not following anyone at the moment."};
-	{ok, PrettyNames} ->
-	    {ok, "You are currently following ~s.", [and_join(PrettyNames)]};
-	{error, not_found} ->
-	    {error, "That's odd. I couldn't retrieve the list of people you're following!"}
+	PrettyNames ->
+	    {ok, "You are currently following ~s.", [and_join(PrettyNames)]}
     end;
 do_command(_To, _From, _RawCommand, {"following", [JidStr]}) ->
     case lookup_following(string_to_urn(JidStr)) of
-	{ok, []} ->
+	[] ->
 	    {ok, "~s is not following anyone at the moment.", [JidStr]};
-	{ok, PrettyNames} ->
-	    {ok, "~s is currently following ~s.", [JidStr, and_join(PrettyNames)]};
-	{error, not_found} ->
-	    {error,
-	     "I can't retrieve the list of people ~s is following. " ++
-	     "Perhaps they are not a registered user?",
-	     [JidStr]}
+	PrettyNames ->
+	    {ok, "~s is currently following ~s.", [JidStr, and_join(PrettyNames)]}
     end;
 do_command(_To, From, _RawCommand, {"followers", []}) ->
     case lookup_followers(jid_to_urn(From)) of
-	{ok, []} ->
+	[] ->
 	    {ok, "No-one is currently following you."};
-	{ok, PrettyNames} ->
+	PrettyNames ->
 	    {ok, "You are currently being followed by ~s.", [and_join(PrettyNames)]}
     end;
-do_command(_To, From, _RawCommand, {"followers", [JidStr]}) ->
+do_command(_To, _From, _RawCommand, {"followers", [JidStr]}) ->
     case lookup_followers(string_to_urn(JidStr)) of
-	{ok, []} ->
+	[] ->
 	    {ok, "No-one is currently following ~s.", [JidStr]};
-	{ok, PrettyNames} ->
+	PrettyNames ->
 	    {ok, "~s is currently being followed by ~s.", [JidStr, and_join(PrettyNames)]}
     end;
 do_command(To, From, _RawCommand, {"invite", [JidStr]}) ->
@@ -722,19 +715,9 @@ use_user_supplied_jid(BotJid, FromJid, JidStr, F) ->
     end.
 
 lookup_following(Urn) ->
-    case rabbit_amqqueue:lookup(?QNAME(Urn)) of
-	{ok, #amqqueue{binding_specs = Specs}} ->
-	    XNames = [XName || #binding_spec{exchange_name = #resource{name = XName}} <- Specs],
-	    {ok, prettify_urn_jids(Urn, XNames)};
-	{error, not_found} ->
-	    {error, not_found}
-    end.
+    prettify_urn_jids(Urn, [XName || {XName, _RoutingKey, _Arguments}
+					 <- rabbit_exchange:list_queue_bindings(?QNAME(Urn))]).
 
 lookup_followers(Urn) ->
-    {atomic, QNames} =
-	mnesia:transaction(
-	  fun () ->
-		  [QName || {#resource{name = QName}, _, _}
-				<- rabbit_exchange:list_exchange_bindings(?XNAME(Urn))]
-	  end),
-    {ok, prettify_urn_jids(Urn, QNames)}.
+    prettify_urn_jids(Urn, [QName || {QName, _RoutingKey, _Arguments}
+					 <- rabbit_exchange:list_exchange_bindings(?XNAME(Urn))]).
